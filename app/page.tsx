@@ -114,7 +114,13 @@ export default function Page() {
             <textarea
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Paste an AC contention, a block, CX questions, opponent args, or ask strategy…"
+              placeholder={`SIDE: (AFF/NEG) [optional]
+SPEECH: (AC/NC/1AR/2NR) [optional]
+TOPIC: [optional]
+VC: (Value | Criterion) [optional]
+OPP OFFENSE: (bullets) [optional]
+MY TEXT: (paste your speech/blocks/args)
+GOAL: (coach / flow / cx / drill) [optional]`}
               style={styles.textarea}
               rows={3}
               disabled={loading}
