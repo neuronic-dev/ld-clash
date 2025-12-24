@@ -1,256 +1,243 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import styles from "./page.module.css";
 
-type Mode = "coach" | "drill" | "rebuttal" | "cx" | "flow";
+type Mode = "coach" | "flow" | "cx" | "drill" | "rebuttal";
+
+const MODE_LABELS: Record<Mode, string> = {
+  coach: "Coach",
+  flow: "Flow",
+  cx: "CX",
+  drill: "Drill",
+  rebuttal: "Rebuttal",
+};
+
+const STARTERS: Array<{ label: string; mode: Mode; text: string; sub: string }> = [
+  {
+    label: "Score my chunk",
+    mode: "coach",
+    sub: "Rubric + 2 voters + 3 fixes + 1 drill",
+    text: `SIDE: (AFF/NEG) [optional]
+SPEECH: (AC/NC/1AR/2NR) [optional]
+TOPIC: [optional]
+VC: (Value | Criterion) [optional]
+
+MY TEXT:
+(paste your chunk)
+
+GOAL: Score me + 2 voters + top 3 fixes.`,
+  },
+  {
+    label: "Find drops",
+    mode: "flow",
+    sub: "Answered vs dropped + collapse recommendation",
+    text: `TOPIC: [optional]
+
+OPP OFFENSE (paste/bullets):
+- ...
+
+MY RESPONSE (paste/bullets):
+- ...
+
+TASK: Identify answered vs dropped and what to collapse to.`,
+  },
+  {
+    label: "CX questions",
+    mode: "cx",
+    sub: "10 sharp questions + follow-ups + purpose",
+    text: `TOPIC: [optional]
+OPP CASE (paste or summarize):
+...
+
+TASK: Give 10 CX questions + follow-ups + what each exposes.`,
+  },
+  {
+    label: "10-min drill",
+    mode: "drill",
+    sub: "Timed drill + rubric + how to improve",
+    text: `WHAT I STRUGGLE WITH:
+(e.g., weighing, extensions, warrants)
+
+TASK: Make a 10-minute drill + scoring rubric + improvement path.`,
+  },
+];
 
 export default function Page() {
   const [mode, setMode] = useState<Mode>("coach");
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  const [messages, setMessages] = useState<
-    { role: "user" | "assistant"; content: string }[]
-  >([
-    {
-      role: "assistant",
-      content:
-        "LD Clash is live. Paste an AC/NC/1AR/2NR chunk (or opponent args) and pick a mode.",
-    },
-  ]);
+  const [output, setOutput] = useState<string>(
+    "Ready.\n\nPick a mode and paste anything — partial info is fine.\n\nNo ghostwriting: you get voters, fixes, and drills."
+  );
 
-  const canSend = useMemo(
-    () => input.trim().length > 0 && !loading,
-    [input, loading]
+  const placeholder = useMemo(
+    () => `SIDE: (AFF/NEG) [optional]
+SPEECH: (AC/NC/1AR/2NR) [optional]
+TOPIC: [optional]
+VC: (Value | Criterion) [optional]
+OPP OFFENSE: (bullets) [optional]
+MY TEXT: (paste your speech/blocks/args)
+GOAL: (coach / flow / cx / drill) [optional]`,
+    []
   );
 
   async function send() {
-    if (!canSend) return;
-    setError(null);
+    const trimmed = input.trim();
+    if (!trimmed || loading) return;
 
-    const userMsg = input.trim();
-    setInput("");
-    setMessages((m) => [...m, { role: "user", content: userMsg }]);
     setLoading(true);
+    setOutput("Thinking...\n");
 
     try {
-      const res = await fetch("/api/chat", {
+      const resp = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: userMsg, mode }),
+        body: JSON.stringify({ message: trimmed, mode }),
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || "Request failed");
+      const data = await resp.json().catch(() => ({}));
 
-      setMessages((m) => [
-        ...m,
-        { role: "assistant", content: data.text || "(empty)" },
-      ]);
+      if (!resp.ok) {
+        const err = data?.error || `Request failed (${resp.status})`;
+        throw new Error(err);
+      }
+
+      setOutput(data?.text ?? "(No response text returned.)");
     } catch (e: any) {
-      setError(e?.message || "Something broke");
+      setOutput(`⚠️ ${e?.message || "Something went wrong."}\n\nTry again or shorten your paste.`);
     } finally {
       setLoading(false);
     }
   }
 
+  async function copyOutput() {
+    try {
+      await navigator.clipboard.writeText(output);
+    } catch {
+      // ignore
+    }
+  }
+
+  function clearAll() {
+    setInput("");
+    setOutput("Cleared.\n\nPick a mode, paste your chunk, and hit Send.");
+  }
+
   return (
-    <div style={styles.page}>
-      <div style={styles.shell}>
-        <header style={styles.header}>
-          <div>
-            <div style={styles.title}>LD Clash</div>
-            <div style={styles.subtitle}>
-              Rubrics, clash, weighing, drills. No ghostwriting.
+    <div className={styles.bg}>
+      <div className={styles.shell}>
+        <div className={styles.topbar}>
+          <div className={styles.brand}>
+            <div className={styles.badge}>LD</div>
+            <div>
+              <div className={styles.title}>LD Clash</div>
+              <div className={styles.sub}>Tournament UI • teal/black • panels • no ghostwriting</div>
             </div>
           </div>
 
-          <div style={styles.controls}>
-            <label style={styles.label}>Mode</label>
-            <select
-              value={mode}
-              onChange={(e) => setMode(e.target.value as Mode)}
-              style={styles.select}
-              disabled={loading}
-            >
-              <option value="coach">Coach</option>
-              <option value="drill">Drill</option>
-              <option value="rebuttal">Rebuttal</option>
-              <option value="cx">Cross-Ex</option>
-              <option value="flow">Flow</option>
-            </select>
-          </div>
-        </header>
-
-        <main style={styles.chat}>
-          {messages.map((m, i) => (
-            <div
-              key={i}
-              style={{
-                ...styles.bubble,
-                ...(m.role === "user"
-                  ? styles.userBubble
-                  : styles.assistantBubble),
-              }}
-            >
-              <div style={styles.role}>{m.role === "user" ? "You" : "Coach"}</div>
-              <div style={styles.text}>{m.content}</div>
+          <div className={styles.right}>
+            <div className={styles.pills}>
+              {(Object.keys(MODE_LABELS) as Mode[]).map((m) => (
+                <button
+                  key={m}
+                  className={`${styles.pill} ${m === mode ? styles.pillActive : ""}`}
+                  onClick={() => setMode(m)}
+                  disabled={loading}
+                >
+                  {MODE_LABELS[m]}
+                </button>
+              ))}
             </div>
-          ))}
 
-          {loading && (
-            <div style={{ ...styles.bubble, ...styles.assistantBubble }}>
-              <div style={styles.role}>Coach</div>
-              <div style={styles.text}>Thinking…</div>
-            </div>
-          )}
-        </main>
-
-        <footer style={styles.footer}>
-          {error && <div style={styles.error}>Error: {error}</div>}
-
-          <div style={styles.inputRow}>
-            <textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder={`SIDE: (AFF/NEG) [optional]
-SPEECH: (AC/NC/1AR/2NR) [optional]
-TOPIC: [optional]
-VC: (Value | Criterion) [optional]
-OPP OFFENSE: (bullets) [optional]
-MY TEXT: (paste your speech/blocks/args)`}
-              style={styles.textarea}
-              rows={3}
-              disabled={loading}
-              onKeyDown={(e) => {
-                if ((e.ctrlKey || e.metaKey) && e.key === "Enter") send();
-              }}
-            />
-            <button
-              onClick={send}
-              style={{
-                ...styles.button,
-                ...(canSend ? {} : styles.buttonDisabled),
-              }}
-              disabled={!canSend}
-              title="Send (Ctrl/Cmd+Enter)"
-            >
-              Send
+            <button className={styles.btnGhost} onClick={clearAll} disabled={loading}>
+              Clear
+            </button>
+            <button className={styles.btnPrimary} onClick={send} disabled={loading || !input.trim()}>
+              {loading ? "…" : "Send"}
             </button>
           </div>
+        </div>
 
-          <div style={styles.hint}>
-            Tip: Ctrl/Cmd + Enter to send. Try <b>Flow</b> mode with opponent
-            args.
-          </div>
-        </footer>
+        <div className={styles.grid}>
+          <section className={styles.card}>
+            <div className={styles.cardHeader}>
+              <div className={styles.cardTitle}>Input</div>
+              <div className={styles.cardTitle}>
+                Send: <span className={styles.kbd}>Cmd/Ctrl</span> + <span className={styles.kbd}>Enter</span>
+              </div>
+            </div>
+
+            <div className={styles.cardBody}>
+              <textarea
+                className={styles.textarea}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder={placeholder}
+                disabled={loading}
+                onKeyDown={(e) => {
+                  if ((e.ctrlKey || e.metaKey) && e.key === "Enter") send();
+                }}
+              />
+
+              <div className={styles.hint}>
+                Missing info is okay. If you don’t know the VC or topic, leave it blank — the coach still runs.
+              </div>
+
+              <div className={styles.row}>
+                <button className={styles.smallBtn} onClick={() => setInput("")} disabled={loading}>
+                  Clear input
+                </button>
+                <div className={styles.cardTitle}>Mode: {MODE_LABELS[mode]}</div>
+              </div>
+
+              <div style={{ marginTop: 12 }}>
+                <div className={styles.cardTitle} style={{ marginBottom: 8 }}>
+                  Starters
+                </div>
+                <div className={styles.starters}>
+                  {STARTERS.map((s) => (
+                    <button
+                      key={s.label}
+                      className={styles.starter}
+                      onClick={() => {
+                        setMode(s.mode);
+                        setInput(s.text);
+                      }}
+                      disabled={loading}
+                    >
+                      <div className={styles.starterTop}>
+                        <span className={styles.starterName}>{s.label}</span>
+                        <span className={styles.tag}>{MODE_LABELS[s.mode]}</span>
+                      </div>
+                      <div className={styles.starterSub}>{s.sub}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className={styles.card}>
+            <div className={styles.cardHeader}>
+              <div className={styles.cardTitle}>Output</div>
+              <div className={styles.row} style={{ marginTop: 0 }}>
+                <button className={styles.smallBtn} onClick={copyOutput}>
+                  Copy
+                </button>
+              </div>
+            </div>
+
+            <div className={styles.cardBody}>
+              <div className={styles.output}>{output}</div>
+              <div className={styles.hint}>
+                Output is formatted for quick extensions: scorecard → voters → fixes → drill.
+              </div>
+            </div>
+          </section>
+        </div>
       </div>
     </div>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  page: {
-    minHeight: "100vh",
-    display: "grid",
-    placeItems: "center",
-    background: "#0b0b0f",
-    color: "#f2f2f2",
-    padding: 20,
-    fontFamily:
-      'ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji"',
-  },
-  shell: {
-    width: "min(920px, 96vw)",
-    height: "min(860px, 92vh)",
-    border: "1px solid rgba(255,255,255,0.12)",
-    borderRadius: 18,
-    overflow: "hidden",
-    background: "rgba(255,255,255,0.04)",
-    boxShadow: "0 10px 30px rgba(0,0,0,0.4)",
-    display: "grid",
-    gridTemplateRows: "auto 1fr auto",
-  },
-  header: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: "16px 18px",
-    borderBottom: "1px solid rgba(255,255,255,0.10)",
-    gap: 14,
-  },
-  title: { fontSize: 22, fontWeight: 800, letterSpacing: 0.2 },
-  subtitle: { fontSize: 13, opacity: 0.8, marginTop: 2 },
-  controls: { display: "flex", alignItems: "center", gap: 10 },
-  label: { fontSize: 12, opacity: 0.8 },
-  select: {
-    background: "rgba(255,255,255,0.06)",
-    color: "#f2f2f2",
-    border: "1px solid rgba(255,255,255,0.16)",
-    borderRadius: 10,
-    padding: "8px 10px",
-    outline: "none",
-  },
-  chat: {
-    padding: 16,
-    overflowY: "auto",
-    display: "flex",
-    flexDirection: "column",
-    gap: 12,
-  },
-  bubble: {
-    borderRadius: 14,
-    padding: "12px 12px",
-    border: "1px solid rgba(255,255,255,0.10)",
-    whiteSpace: "pre-wrap",
-  },
-  userBubble: {
-    alignSelf: "flex-end",
-    background: "rgba(99,102,241,0.14)",
-  },
-  assistantBubble: {
-    alignSelf: "flex-start",
-    background: "rgba(255,255,255,0.06)",
-  },
-  role: { fontSize: 12, opacity: 0.75, marginBottom: 6 },
-  text: { fontSize: 14, lineHeight: 1.45 },
-  footer: {
-    padding: 16,
-    borderTop: "1px solid rgba(255,255,255,0.10)",
-    display: "flex",
-    flexDirection: "column",
-    gap: 10,
-  },
-  inputRow: { display: "grid", gridTemplateColumns: "1fr auto", gap: 10 },
-  textarea: {
-    width: "100%",
-    resize: "vertical",
-    background: "rgba(255,255,255,0.06)",
-    color: "#f2f2f2",
-    border: "1px solid rgba(255,255,255,0.16)",
-    borderRadius: 12,
-    padding: 10,
-    outline: "none",
-  },
-  button: {
-    background: "rgba(255,255,255,0.12)",
-    color: "#f2f2f2",
-    border: "1px solid rgba(255,255,255,0.20)",
-    borderRadius: 12,
-    padding: "10px 14px",
-    fontWeight: 800,
-    cursor: "pointer",
-    height: "fit-content",
-  },
-  buttonDisabled: { opacity: 0.5, cursor: "not-allowed" },
-  hint: { fontSize: 12, opacity: 0.75 },
-  error: {
-    fontSize: 12,
-    color: "#ff6b6b",
-    background: "rgba(255,0,0,0.08)",
-    border: "1px solid rgba(255,0,0,0.20)",
-    padding: "8px 10px",
-    borderRadius: 12,
-  },
-};
