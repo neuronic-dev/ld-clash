@@ -119,8 +119,7 @@ SPEECH: (AC/NC/1AR/2NR) [optional]
 TOPIC: [optional]
 VC: (Value | Criterion) [optional]
 OPP OFFENSE: (bullets) [optional]
-MY TEXT: (paste your speech/blocks/args)
-GOAL: (coach / flow / cx / drill) [optional]`}
+MY TEXT: (paste your speech/blocks/args)`}
               style={styles.textarea}
               rows={3}
               disabled={loading}
