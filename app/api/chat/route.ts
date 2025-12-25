@@ -1,3 +1,16 @@
+
+
+function stripMarkdown(input: string) {
+  return (input || "")
+    .replace(/^#{1,6}\s+/gm, "")        // ### Heading -> Heading
+    .replace(/\*\*(.*?)\*\*/g, "$1") // **bold** -> bold
+    .replace(/\*(.*?)\*/g, "$1")       // *italics* -> italics
+    .replace(/`([^`]+)`/g, "$1")   // `code` -> code
+    .replace(/^\s*[-*+]\s+/gm, "- ")   // normalize bullets
+    .replace(/\n{3,}/g, "\n\n")       // collapse huge blank gaps
+    .trim();
+}
+
 import OpenAI from "openai";
 import { z } from "zod";
 
