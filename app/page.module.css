@@ -303,3 +303,106 @@
   font-size: 12px;
   color: var(--muted);
 }
+
+/* ===== Saved History additions ===== */
+.tabs {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.tabBtn {
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.03);
+  color: rgba(255,255,255,0.86);
+  padding: 7px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.tabBtnActive {
+  border-color: rgba(45,212,191,0.35);
+  background: rgba(45,212,191,0.10);
+  color: rgba(255,255,255,0.96);
+}
+
+.iconRow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.iconBtn {
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.03);
+  color: rgba(255,255,255,0.88);
+  padding: 7px 10px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.iconBtn:hover { background: rgba(255,255,255,0.06); }
+
+.danger {
+  border-color: rgba(239,68,68,0.30);
+}
+
+.historyList {
+  display: grid;
+  gap: 10px;
+}
+
+.historyItem {
+  text-align: left;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.03);
+  border-radius: 14px;
+  padding: 10px 10px;
+  cursor: pointer;
+}
+
+.historyItem:hover {
+  border-color: rgba(45,212,191,0.25);
+  background: rgba(255,255,255,0.05);
+}
+
+.historyTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.historyTitle {
+  font-weight: 900;
+  font-size: 13px;
+  color: rgba(255,255,255,0.92);
+}
+
+.historyMeta {
+  margin-top: 6px;
+  font-size: 12px;
+  color: rgba(255,255,255,0.65);
+  font-family: var(--mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.historyActions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.miniTag {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: rgba(255,255,255,0.85);
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(45,212,191,0.22);
+  background: rgba(45,212,191,0.08);
+}
