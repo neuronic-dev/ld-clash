@@ -23,6 +23,20 @@ const BodySchema = z.object({
 
 type Mode = z.infer<typeof BodySchema>["mode"];
 
+const OUTPUT_FORMAT = `FORMAT REQUIREMENT (STRICT):
+Return your answer with EXACTLY these 4 headings, in this order, each on its own line, ALL CAPS:
+
+SCORECARD
+VOTERS
+FIXES
+DRILL
+
+Rules:
+- Under each heading, use bullet points starting with "- ".
+- No other headings. No markdown headers like "##".
+- If you truly have nothing for a section, write "- N/A".
+- Keep it tournament-usable: short bullets, high signal.`;
+
 function systemPrompt(mode: Mode) {
   const base =
     "You are an elite Lincoln-Douglas (LD) debate coach. " +
@@ -72,7 +86,7 @@ export async function POST(req: Request) {
 
     const resp = await client.responses.create({
       model: "gpt-4o-mini",
-      instructions: systemPrompt(mode),
+      instructions: systemPrompt(mode) + "\n\n" + OUTPUT_FORMAT,
       input: message,
       temperature: 0.4,
     });
