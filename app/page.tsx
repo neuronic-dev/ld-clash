@@ -164,14 +164,27 @@ TASK:
         body: JSON.stringify({ message, mode }),
       });
 
-      const data = await resp.json().catch(() => ({}));
+      const raw = await resp.text();
 
-      if (!resp.ok) {
-        const err = data?.error || `Request failed (${resp.status})`;
-        throw new Error(err);
+      let data: any = {};
+      try {
+        data = raw ? JSON.parse(raw) : {};
+      } catch {
+        // keep as text
       }
 
-      setOutput(data?.text ?? "(No response text returned.)");
+      if (!resp.ok) {
+        const errAny =
+          (data && (data.error ?? data.message)) ??
+          raw ??
+          `Request failed (${resp.status})`;
+
+        const errStr = typeof errAny === "string" ? errAny : JSON.stringify(errAny, null, 2);
+        throw new Error(errStr);
+      }
+
+      // prefer JSON { text }, fallback to raw text
+      setOutput(typeof data?.text === "string" ? data.text : (raw || "(No response text returned.)"));
 
       // Clear only normal input; keep envision filled so they can iterate.
       if (mode !== "envision") setInput("");
