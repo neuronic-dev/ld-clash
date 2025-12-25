@@ -79,7 +79,8 @@ TOPIC: [optional]
 VC: (Value | Criterion) [optional]
 OPP OFFENSE: (bullets) [optional]
 MY TEXT: (paste your speech/blocks/args)
-GOAL: (coach / flow / cx / drill) [optional]`,
+WHAT I WANT: (score / voters / fixes / CX / collapse) [optional]
+`,
     []
   );
 
