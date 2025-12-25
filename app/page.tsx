@@ -6,6 +6,18 @@ import styles from "./page.module.css";
 type Mode = "coach" | "flow" | "cx" | "drill" | "rebuttal";
 type ViewTab = "output" | "history";
 
+
+
+function cleanText(s: string) {
+  return (s || "")
+    .replace(/^#{1,6}\s+/gm, "")          // remove markdown headings like ### Title
+    .replace(/\*\*(.*?)\*\*/g, "$1")  // remove **bold**
+    .replace(/`([^`]+)`/g, "$1")   // remove `inline code`
+    .replace(/^\s*[-*+]\s+/gm, "- ")    // normalize bullets
+    .replace(/^\s*\d+\.\s+/gm, (m) => m) // keep numbered lists as-is
+    .trim();
+}
+
 const MODE_LABELS: Record<Mode, string> = {
   coach: "Coach",
   flow: "Flow",
