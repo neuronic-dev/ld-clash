@@ -1,22 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import styles from "./page.module.css";
 
-type Mode = "coach" | "flow" | "cx" | "drill" | "rebuttal";
-type ViewTab = "output" | "history";
-
-
-
-function cleanText(s: string) {
-  return (s || "")
-    .replace(/^#{1,6}\s+/gm, "")          // remove markdown headings like ### Title
-    .replace(/\*\*(.*?)\*\*/g, "$1")  // remove **bold**
-    .replace(/`([^`]+)`/g, "$1")   // remove `inline code`
-    .replace(/^\s*[-*+]\s+/gm, "- ")    // normalize bullets
-    .replace(/^\s*\d+\.\s+/gm, (m) => m) // keep numbered lists as-is
-    .trim();
-}
+type Mode = "coach" | "flow" | "cx" | "drill" | "rebuttal" | "envision";
 
 const MODE_LABELS: Record<Mode, string> = {
   coach: "Coach",
@@ -24,18 +11,8 @@ const MODE_LABELS: Record<Mode, string> = {
   cx: "CX",
   drill: "Drill",
   rebuttal: "Rebuttal",
+  envision: "Envision",
 };
-
-type SavedMsg = {
-  id: string;
-  ts: number;
-  mode: Mode;
-  input: string;
-  output: string;
-};
-
-const STORAGE_KEY = "ldclash_history_v1";
-const MAX_SAVED = 200;
 
 const STARTERS: Array<{ label: string; mode: Mode; text: string; sub: string }> = [
   {
@@ -50,7 +27,7 @@ VC: (Value | Criterion) [optional]
 MY TEXT:
 (paste your chunk)
 
-WHAT I WANT: Score me + 2 voters + top 3 fixes.`,
+GOAL: Score me + 2 voters + top 3 fixes.`,
   },
   {
     label: "Find drops",
@@ -85,26 +62,26 @@ TASK: Give 10 CX questions + follow-ups + what each exposes.`,
 
 TASK: Make a 10-minute drill + scoring rubric + improvement path.`,
   },
+  {
+    label: "Envision a whole round",
+    mode: "envision",
+    sub: "Full round sim + positional feedback + endgame plan",
+    text: `TOPIC:
+(paste resolution)
+
+SIDE: (AFF/NEG)
+V:
+VC:
+
+CASE OR CONTENTION:
+(paste)
+
+TASK: Envision the entire round against likely opponent positions, using positional debating: ballot question, position stack, win condition math, tempo/initiative, threats/dilemmas, link control, impact calculus, collapse + endgame.`,
+  },
 ];
-
-function fmtTime(ts: number) {
-  const d = new Date(ts);
-  return d.toLocaleString(undefined, {
-    month: "short",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-function previewLine(s: string, n = 90) {
-  const one = s.replace(/\s+/g, " ").trim();
-  return one.length > n ? one.slice(0, n - 1) + "…" : one;
-}
 
 export default function Page() {
   const [mode, setMode] = useState<Mode>("coach");
-  const [tab, setTab] = useState<ViewTab>("output");
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -112,28 +89,24 @@ export default function Page() {
     "Ready.\n\nPick a mode and paste anything — partial info is fine.\n\nNo ghostwriting: you get voters, fixes, and drills."
   );
 
-  const [history, setHistory] = useState<SavedMsg[]>([]);
+  // Envision fields
+  const [envTopic, setEnvTopic] = useState("");
+  const [envSide, setEnvSide] = useState<"AFF" | "NEG">("AFF");
+  const [envV, setEnvV] = useState("");
+  const [envVC, setEnvVC] = useState("");
+  const [envCase, setEnvCase] = useState("");
 
-  // Load saved history once
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return;
-      const parsed = JSON.parse(raw) as SavedMsg[];
-      if (Array.isArray(parsed)) setHistory(parsed.slice(0, MAX_SAVED));
-    } catch {
-      // ignore
-    }
-  }, []);
-
-  // Persist history
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(history.slice(0, MAX_SAVED)));
-    } catch {
-      // ignore
-    }
-  }, [history]);
+  // Envision dropdowns (mapped to your masterfile concepts)
+  const [envJudge, setEnvJudge] = useState<"Lay" | "Notetaker" | "Flow">("Flow");
+  const [envRisk, setEnvRisk] = useState<"Threshold" | "EV" | "Balanced">("Balanced");
+  const [envStrategy, setEnvStrategy] = useState<"Tempo/Initiative" | "Link Control" | "Key Squares" | "Balanced">(
+    "Balanced"
+  );
+  const [envEndgame, setEnvEndgame] = useState<"1 Voter" | "2 Voters">("1 Voter");
+  const [envDelivery, setEnvDelivery] = useState<"Teach" | "Precision" | "Story" | "Hammer">("Precision");
+  const [envFocus, setEnvFocus] = useState<
+    "Ballot Question" | "Framework/Standard" | "Links/Reachability" | "Weighing/Impact Calc" | "All"
+  >("All");
 
   const placeholder = useMemo(
     () => `SIDE: (AFF/NEG) [optional]
@@ -147,22 +120,48 @@ WHAT I WANT: (score / voters / fixes / CX / collapse) [optional]
     []
   );
 
+  function buildEnvisionMessage() {
+    return `MODE: ENVISION
+
+TOPIC:
+${envTopic || "(missing)"}
+
+SIDE: ${envSide}
+V: ${envV || "(missing)"}
+VC: ${envVC || "(missing)"}
+
+JUDGE PROFILE: ${envJudge}
+RISK POSTURE (Impact Calc): ${envRisk}
+STRATEGY FOCUS: ${envStrategy}
+ENDGAME PREF (Collapse): ${envEndgame}
+DELIVERY MODE: ${envDelivery}
+FOCUS SQUARES: ${envFocus}
+
+CASE / CONTENTION:
+${envCase || "(missing)"}
+
+TASK:
+1) Generate the most likely opposing position (interpretation, standard/decision rule, mechanism, offense).
+2) Simulate the round step-by-step (speech by speech) and show where it’s going.
+3) Use positional debating terms constantly: ballot question, position stack/spine, invariants, win condition math, tempo/initiative, threats/dilemmas/double binds, link control, reachability, impact calculus (probability/magnitude/scope/timeframe/reversibility/moral relevance), collapse timing, endgame.
+4) Give feedback at each step: what I should say next + what to concede strategically + what to prioritize (triage).
+`;
+  }
+
   async function send() {
-    const trimmed = input.trim();
-    if (!trimmed || loading) return;
+    if (loading) return;
+
+    const message = mode === "envision" ? buildEnvisionMessage() : input.trim();
+    if (!message.trim()) return;
 
     setLoading(true);
-    setTab("output");
     setOutput("Thinking...\n");
-
-    const currentMode = mode;
 
     try {
       const resp = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ message: trimmed, mode: currentMode }),
+        body: JSON.stringify({ message, mode }),
       });
 
       const data = await resp.json().catch(() => ({}));
@@ -172,18 +171,10 @@ WHAT I WANT: (score / voters / fixes / CX / collapse) [optional]
         throw new Error(err);
       }
 
-      const text = (data?.text ?? "(No response text returned.)") as string;
-      setOutput(text);
+      setOutput(data?.text ?? "(No response text returned.)");
 
-      const item: SavedMsg = {
-        id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-        ts: Date.now(),
-        mode: currentMode,
-        input: trimmed,
-        output: text,
-      };
-
-      setHistory((prev) => [item, ...prev].slice(0, MAX_SAVED));
+      // Clear only normal input; keep envision filled so they can iterate.
+      if (mode !== "envision") setInput("");
     } catch (e: any) {
       setOutput(`⚠️ ${e?.message || "Something went wrong."}\n\nTry again or shorten your paste.`);
     } finally {
@@ -194,53 +185,34 @@ WHAT I WANT: (score / voters / fixes / CX / collapse) [optional]
   async function copyOutput() {
     try {
       await navigator.clipboard.writeText(output);
-    } catch {}
-  }
-
-  async function exportHistory() {
-    const payload = history.map((h) => ({
-      ts: h.ts,
-      time: fmtTime(h.ts),
-      mode: h.mode,
-      input: h.input,
-      output: h.output,
-    }));
-    try {
-      await navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
-      setOutput("Copied history JSON to clipboard ✅\n\nPaste into Notes/Docs for backup.");
-      setTab("output");
     } catch {
-      setOutput("Couldn’t copy history. Browser blocked clipboard.");
-      setTab("output");
+      // ignore
     }
   }
 
   function clearAll() {
     setInput("");
     setOutput("Cleared.\n\nPick a mode, paste your chunk, and hit Send.");
-    setTab("output");
+
+    // Also clear Envision
+    setEnvTopic("");
+    setEnvSide("AFF");
+    setEnvV("");
+    setEnvVC("");
+    setEnvCase("");
+    setEnvJudge("Flow");
+    setEnvRisk("Balanced");
+    setEnvStrategy("Balanced");
+    setEnvEndgame("1 Voter");
+    setEnvDelivery("Precision");
+    setEnvFocus("All");
   }
 
-  function clearHistory() {
-    if (!confirm("Delete all saved history on this device/browser?")) return;
-    setHistory([]);
-    try {
-      localStorage.removeItem(STORAGE_KEY);
-    } catch {}
-    setOutput("History cleared on this device ✅");
-    setTab("output");
-  }
-
-  function loadItem(h: SavedMsg) {
-    setMode(h.mode);
-    setInput(h.input);
-    setOutput(h.output);
-    setTab("output");
-  }
-
-  function deleteItem(id: string) {
-    setHistory((prev) => prev.filter((x) => x.id !== id));
-  }
+  const envisionQuickSendHint = (
+    <>
+      Send: <span className={styles.kbd}>Cmd/Ctrl</span> + <span className={styles.kbd}>Enter</span>
+    </>
+  );
 
   return (
     <div className={styles.bg}>
@@ -271,7 +243,12 @@ WHAT I WANT: (score / voters / fixes / CX / collapse) [optional]
             <button className={styles.btnGhost} onClick={clearAll} disabled={loading}>
               Clear
             </button>
-            <button className={styles.btnPrimary} onClick={send} disabled={loading || !input.trim()}>
+            <button
+              className={styles.btnPrimary}
+              onClick={send}
+              disabled={loading || (mode === "envision" ? !envCase.trim() : !input.trim())}
+              title={mode === "envision" ? "Requires case/content paste" : "Requires input"}
+            >
               {loading ? "…" : "Send"}
             </button>
           </div>
@@ -281,26 +258,196 @@ WHAT I WANT: (score / voters / fixes / CX / collapse) [optional]
           <section className={styles.card}>
             <div className={styles.cardHeader}>
               <div className={styles.cardTitle}>Input</div>
-              <div className={styles.cardTitle}>
-                Send: <span className={styles.kbd}>Cmd/Ctrl</span> + <span className={styles.kbd}>Enter</span>
-              </div>
+              <div className={styles.cardTitle}>{envisionQuickSendHint}</div>
             </div>
 
             <div className={styles.cardBody}>
-              <textarea
-                className={styles.textarea}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder={placeholder}
-                disabled={loading}
-                onKeyDown={(e) => {
-                  if ((e.ctrlKey || e.metaKey) && e.key === "Enter") send();
-                }}
-              />
+              {mode !== "envision" ? (
+                <>
+                  <textarea
+                    className={styles.textarea}
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    placeholder={placeholder}
+                    disabled={loading}
+                    onKeyDown={(e) => {
+                      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") send();
+                    }}
+                  />
 
-              <div className={styles.hint}>
-                Missing info is okay. If you don’t know the VC or topic, leave it blank — the coach still runs.
-              </div>
+                  <div className={styles.hint}>
+                    Missing info is okay. If you don’t know the VC or topic, leave it blank — the coach still runs.
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className={styles.hint} style={{ marginBottom: 10 }}>
+                    Envision = full round simulation + coaching. Paste your case/cont. Dropdowns just steer the round.
+                  </div>
+
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                      gap: 10,
+                    }}
+                  >
+                    <div>
+                      <div className={styles.cardTitle} style={{ marginBottom: 6 }}>
+                        Topic (resolution)
+                      </div>
+                      <textarea
+                        className={styles.textarea}
+                        style={{ minHeight: 90 }}
+                        value={envTopic}
+                        onChange={(e) => setEnvTopic(e.target.value)}
+                        placeholder="Paste the full resolution"
+                        disabled={loading}
+                      />
+                    </div>
+
+                    <div>
+                      <div className={styles.cardTitle} style={{ marginBottom: 6 }}>
+                        Side / V / VC
+                      </div>
+
+                      <div className={styles.row} style={{ marginTop: 0, gap: 8, alignItems: "center" }}>
+                        <select
+                          className={styles.smallBtn}
+                          value={envSide}
+                          onChange={(e) => setEnvSide(e.target.value as any)}
+                          disabled={loading}
+                        >
+                          <option value="AFF">AFF</option>
+                          <option value="NEG">NEG</option>
+                        </select>
+
+                        <input
+                          className={styles.textarea}
+                          style={{ minHeight: 0, height: 40, resize: "none" }}
+                          value={envV}
+                          onChange={(e) => setEnvV(e.target.value)}
+                          placeholder="V (Value)"
+                          disabled={loading}
+                        />
+                      </div>
+
+                      <textarea
+                        className={styles.textarea}
+                        style={{ minHeight: 52, marginTop: 8 }}
+                        value={envVC}
+                        onChange={(e) => setEnvVC(e.target.value)}
+                        placeholder="VC (Criterion / Decision rule in plain English)"
+                        disabled={loading}
+                      />
+                    </div>
+
+                    <div style={{ gridColumn: "1 / -1" }}>
+                      <div className={styles.cardTitle} style={{ marginBottom: 6 }}>
+                        Case / Contention (paste)
+                      </div>
+                      <textarea
+                        className={styles.textarea}
+                        value={envCase}
+                        onChange={(e) => setEnvCase(e.target.value)}
+                        placeholder="Paste your entire case or a single contention"
+                        disabled={loading}
+                        onKeyDown={(e) => {
+                          if ((e.ctrlKey || e.metaKey) && e.key === "Enter") send();
+                        }}
+                      />
+                    </div>
+
+                    <div style={{ gridColumn: "1 / -1" }}>
+                      <div className={styles.cardTitle} style={{ marginBottom: 8 }}>
+                        Round Controls (optional)
+                      </div>
+
+                      <div className={styles.row} style={{ flexWrap: "wrap", gap: 8 }}>
+                        <select
+                          className={styles.smallBtn}
+                          value={envJudge}
+                          onChange={(e) => setEnvJudge(e.target.value as any)}
+                          disabled={loading}
+                          title="Judge profiling"
+                        >
+                          <option value="Lay">Judge: Lay</option>
+                          <option value="Notetaker">Judge: Notetaker</option>
+                          <option value="Flow">Judge: Flow</option>
+                        </select>
+
+                        <select
+                          className={styles.smallBtn}
+                          value={envRisk}
+                          onChange={(e) => setEnvRisk(e.target.value as any)}
+                          disabled={loading}
+                          title="Impact calculus posture"
+                        >
+                          <option value="Balanced">Risk: Balanced</option>
+                          <option value="Threshold">Risk: Threshold</option>
+                          <option value="EV">Risk: EV</option>
+                        </select>
+
+                        <select
+                          className={styles.smallBtn}
+                          value={envStrategy}
+                          onChange={(e) => setEnvStrategy(e.target.value as any)}
+                          disabled={loading}
+                          title="Tempo / initiative / link control"
+                        >
+                          <option value="Balanced">Strategy: Balanced</option>
+                          <option value="Tempo/Initiative">Strategy: Tempo/Initiative</option>
+                          <option value="Link Control">Strategy: Link Control</option>
+                          <option value="Key Squares">Strategy: Key Squares</option>
+                        </select>
+
+                        <select
+                          className={styles.smallBtn}
+                          value={envEndgame}
+                          onChange={(e) => setEnvEndgame(e.target.value as any)}
+                          disabled={loading}
+                          title="Collapse preference"
+                        >
+                          <option value="1 Voter">Endgame: 1 Voter</option>
+                          <option value="2 Voters">Endgame: 2 Voters</option>
+                        </select>
+
+                        <select
+                          className={styles.smallBtn}
+                          value={envDelivery}
+                          onChange={(e) => setEnvDelivery(e.target.value as any)}
+                          disabled={loading}
+                          title="Delivery mode switching"
+                        >
+                          <option value="Teach">Delivery: Teach</option>
+                          <option value="Precision">Delivery: Precision</option>
+                          <option value="Story">Delivery: Story</option>
+                          <option value="Hammer">Delivery: Hammer</option>
+                        </select>
+
+                        <select
+                          className={styles.smallBtn}
+                          value={envFocus}
+                          onChange={(e) => setEnvFocus(e.target.value as any)}
+                          disabled={loading}
+                          title="Key squares focus"
+                        >
+                          <option value="All">Focus: All</option>
+                          <option value="Ballot Question">Focus: Ballot Question</option>
+                          <option value="Framework/Standard">Focus: Framework/Standard</option>
+                          <option value="Links/Reachability">Focus: Links/Reachability</option>
+                          <option value="Weighing/Impact Calc">Focus: Weighing/Impact Calc</option>
+                        </select>
+                      </div>
+
+                      <div className={styles.hint} style={{ marginTop: 8 }}>
+                        These dropdowns map to: judge profiling, impact calculus, tempo/initiative, key squares, and endgame
+                        planning — aka “don’t drift, don’t die.”
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
 
               <div className={styles.row}>
                 <button className={styles.smallBtn} onClick={() => setInput("")} disabled={loading}>
@@ -320,7 +467,13 @@ WHAT I WANT: (score / voters / fixes / CX / collapse) [optional]
                       className={styles.starter}
                       onClick={() => {
                         setMode(s.mode);
-                        setInput(s.text);
+                        if (s.mode === "envision") {
+                          // Don’t overwrite envision fields; just drop the template into the normal input if they want it.
+                          // If they click it, we’ll populate the envision case box with the template so it's obvious.
+                          setEnvCase(s.text);
+                        } else {
+                          setInput(s.text);
+                        }
                       }}
                       disabled={loading}
                     >
@@ -339,84 +492,18 @@ WHAT I WANT: (score / voters / fixes / CX / collapse) [optional]
           <section className={styles.card}>
             <div className={styles.cardHeader}>
               <div className={styles.cardTitle}>Output</div>
-
-              <div className={styles.iconRow}>
-                <div className={styles.tabs}>
-                  <button
-                    className={`${styles.tabBtn} ${tab === "output" ? styles.tabBtnActive : ""}`}
-                    onClick={() => setTab("output")}
-                  >
-                    Output
-                  </button>
-                  <button
-                    className={`${styles.tabBtn} ${tab === "history" ? styles.tabBtnActive : ""}`}
-                    onClick={() => setTab("history")}
-                  >
-                    History ({history.length})
-                  </button>
-                </div>
-
-                <button className={styles.iconBtn} onClick={copyOutput}>
+              <div className={styles.row} style={{ marginTop: 0 }}>
+                <button className={styles.smallBtn} onClick={copyOutput}>
                   Copy
                 </button>
               </div>
             </div>
 
             <div className={styles.cardBody}>
-              {tab === "output" ? (
-                <>
-                  <div className={styles.output}>{output}</div>
-                  <div className={styles.hint}>
-                    Output is formatted for quick extensions: scorecard → voters → fixes → drill.
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className={styles.row} style={{ marginTop: 0 }}>
-                    <div className={styles.hint} style={{ marginTop: 0 }}>
-                      Saved on this device/browser. Click one to reload it (mode + input + output).
-                    </div>
-                    <div className={styles.iconRow}>
-                      <button className={styles.iconBtn} onClick={exportHistory}>
-                        Export
-                      </button>
-                      <button className={`${styles.iconBtn} ${styles.danger}`} onClick={clearHistory}>
-                        Clear all
-                      </button>
-                    </div>
-                  </div>
-
-                  <div style={{ marginTop: 12 }} className={styles.historyList}>
-                    {history.length === 0 ? (
-                      <div className={styles.output}>No saved chats yet.\n\nSend something and it’ll auto-save.</div>
-                    ) : (
-                      history.map((h) => (
-                        <div key={h.id} className={styles.historyItem} onClick={() => loadItem(h)} role="button">
-                          <div className={styles.historyTop}>
-                            <div className={styles.historyTitle}>{previewLine(h.input, 70) || "(empty input)"}</div>
-                            <div className={styles.historyActions}>
-                              <span className={styles.miniTag}>{MODE_LABELS[h.mode]}</span>
-                              <button
-                                className={`${styles.iconBtn} ${styles.danger}`}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  deleteItem(h.id);
-                                }}
-                                title="Delete this saved item"
-                              >
-                                Delete
-                              </button>
-                            </div>
-                          </div>
-                          <div className={styles.historyMeta}>
-                            {fmtTime(h.ts)} • Output: {previewLine(h.output, 90)}
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </>
-              )}
+              <div className={styles.output}>{output}</div>
+              <div className={styles.hint}>
+                Output is formatted for quick extensions: scorecard → voters → fixes → drill.
+              </div>
             </div>
           </section>
         </div>
